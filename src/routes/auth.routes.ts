@@ -2,6 +2,7 @@ import { Router } from "express";
 import { registry } from "../openapi.ts";
 import { authenticate } from "../middleware/authenticate.ts";
 import { validateBody } from "../middleware/validate.ts";
+import { authLimiter } from "../middleware/rateLimiter.ts";
 import * as auth from "../controllers/auth.controller.ts";
 import {
   authResponseSchema,
@@ -14,6 +15,8 @@ import {
 } from "../validators/auth.validator.ts";
 
 const router = Router();
+
+router.use(authLimiter);
 
 router.post("/register", validateBody(registerSchema), auth.register);
 router.post("/login", validateBody(loginSchema), auth.login);
@@ -36,6 +39,7 @@ registry.registerPath({
     201: { description: "User created", content: json(authResponseSchema) },
     400: error("Validation failed"),
     409: error("Username or email already taken"),
+    429: error("Too many requests, please try again later"),
   },
 });
 
@@ -49,6 +53,7 @@ registry.registerPath({
     200: { description: "Logged in", content: json(authResponseSchema) },
     400: error("Validation failed"),
     401: error("Invalid credentials"),
+    429: error("Too many requests, please try again later"),
   },
 });
 
@@ -62,6 +67,7 @@ registry.registerPath({
     200: { description: "New token pair", content: json(tokenPairSchema) },
     400: error("Validation failed"),
     401: error("Invalid refresh token"),
+    429: error("Too many requests, please try again later"),
   },
 });
 
@@ -74,6 +80,7 @@ registry.registerPath({
   responses: {
     204: { description: "Logged out" },
     401: error("Unauthorized"),
+    429: error("Too many requests, please try again later"),
   },
 });
 
@@ -86,6 +93,7 @@ registry.registerPath({
   responses: {
     200: { description: "Current user", content: json(meSchema) },
     401: error("Unauthorized"),
+    429: error("Too many requests, please try again later"),
   },
 });
 

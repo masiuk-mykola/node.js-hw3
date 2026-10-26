@@ -1,7 +1,14 @@
+import "dotenv/config";
 import express from "express";
 import type { NextFunction, Request, Response } from "express";
 import swaggerUi from "swagger-ui-express";
 import cookieParser from "cookie-parser";
+import cors from "cors";
+import helmet from "helmet";
+import multer from "multer";
+import { pinoHttp } from "pino-http";
+
+import logger from "./src/logger.ts";
 
 import { generateOpenApiDocument } from "./src/openapi.ts";
 import authRouter from "./src/routes/auth.routes.ts";
@@ -9,6 +16,14 @@ import announcementsRouter from "./src/routes/announcements.routes.ts";
 
 const app = express();
 
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(pinoHttp({ logger }));
+app.use(helmet());
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -25,7 +40,7 @@ app.use((_req: Request, res: Response) => {
 
 // Error handling middleware
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(err);
+  logger.error({ err }, "Request failed");
 
   if (err.type === "entity.parse.failed") {
     return res.status(400).json({
@@ -34,6 +49,10 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
         body: ["Invalid JSON format in request body"],
       },
     });
+  }
+
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ error: err.message });
   }
 
   if (err.status && err.status >= 400 && err.status < 500) {
@@ -57,8 +76,13 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log(
-    `Server is running on port ${PORT}: http://localhost:${PORT}/api-docs`,
-  );
-});
+// Tests import the app via supertest and don't need a listening server
+if (!process.env.VITEST) {
+  app.listen(PORT, () => {
+    logger.info(
+      `Server is running on port ${PORT}: http://localhost:${PORT}/api-docs`,
+    );
+  });
+}
+
+export default app;

@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import createError from "http-errors";
 import jwt from "jsonwebtoken";
 import prisma from "../../prisma/client.ts";
+import logger from "../logger.ts";
 import type {
   LoginInput,
   RefreshInput,
@@ -70,6 +71,7 @@ export async function register(req: Request, res: Response) {
     data: { token: tokens.refreshToken, userId: user.id },
   });
 
+  logger.info({ userId: user.id, username }, "User registered");
   res.status(201).json({ user, ...tokens });
 }
 
@@ -78,6 +80,7 @@ export async function login(req: Request, res: Response) {
 
   const user = await prisma.user.findUnique({ where: { username } });
   if (!user || !(await bcrypt.compare(password, user.password))) {
+    logger.warn({ username }, "Failed login attempt");
     throw createError(401, "Invalid credentials");
   }
 
@@ -89,6 +92,7 @@ export async function login(req: Request, res: Response) {
     }),
   ]);
 
+  logger.info({ userId: user.id, username }, "User logged in");
   res.json({
     user: {
       id: user.id,

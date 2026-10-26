@@ -23,6 +23,11 @@ REST API для дошки оголошень з JWT-автентифікаці�
 | @asteasolutions/zod-to-openapi | Генерація OpenAPI документації  |
 | swagger-ui-express             | Swagger UI                      |
 | dotenv                         | Змінні середовища               |
+| helmet, cors                   | Безпечні заголовки та CORS      |
+| express-rate-limit             | Обмеження запитів до `/auth`    |
+| pino, pino-http                | Логування                       |
+| multer, cloudinary             | Завантаження фото оголошень     |
+| Vitest, supertest              | Тестування                      |
 
 ## Встановлення
 
@@ -43,6 +48,10 @@ cp .env.example .env
 ```env
 DATABASE_URL=postgresql://postgres:password@localhost:5432/announcements?schema=public
 JWT_SECRET=your-secret-key-at-least-256-bits-long
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
 ```
 
 4. Застосуйте міграцію:
@@ -106,8 +115,28 @@ npm run dev
 | `description` | рядок, обов'язковий, мінімум 10 символів               |
 | `price`       | число, обов'язкове, > 0                                |
 | `category`    | рядок, обов'язковий: `sale`, `service`, `job`, `other` |
+| `image`       | файл-зображення, опціональний, до 5 МБ                 |
 
-PATCH використовує ті ж правила валідації, але всі поля опціональні (хоча б одне має бути присутнє).
+PATCH використовує ті ж правила валідації, але всі поля опціональні (хоча б одне поле або фото має бути присутнє).
+
+Щоб додати фото, надсилайте запит як `multipart/form-data`. Файл тимчасово зберігається в `uploads/`, завантажується в Cloudinary і видаляється з диску; у базі зберігається лише `imageUrl`. JSON-запити без фото також підтримуються.
+
+```bash
+curl -X POST http://localhost:3000/announcements \
+  -H "Authorization: Bearer <accessToken>" \
+  -F title="Продам велосипед" \
+  -F description="Trek у відмінному стані, розмір рами L" \
+  -F price=8500 \
+  -F category=sale \
+  -F image=@bike.jpg
+```
+
+## Безпека та логування
+
+- `helmet` встановлює безпечні HTTP-заголовки для всіх маршрутів.
+- `cors` дозволяє запити лише з джерел зі змінної `ALLOWED_ORIGINS`.
+- Маршрути `/auth/*` обмежені 10 запитами з однієї IP за 15 хвилин, після чого сервер відповідає `429`.
+- `pino-http` логує кожен HTTP-запит; контролери логують реєстрацію, вхід, створення/оновлення оголошення та завантаження фото (`src/logger.ts`).
 
 ## Структура проекту
 
@@ -123,6 +152,8 @@ boilerplate/
 │   │   └── announcements.controller.ts
 │   ├── middleware/
 │   │   ├── authenticate.ts
+│   │   ├── rateLimiter.ts
+│   │   ├── upload.ts
 │   │   └── validate.ts
 │   ├── routes/
 │   │   ├── auth.routes.ts
@@ -130,13 +161,19 @@ boilerplate/
 │   ├── validators/
 │   │   ├── auth.validator.ts
 │   │   └── announcements.validator.ts
+│   ├── cloudinary.ts
+│   ├── logger.ts
 │   └── openapi.ts
+├── tests/
+│   └── auth.test.ts
+├── uploads/
 ├── app.ts
 ├── .env.example
 ├── .env
 ├── package.json
 ├── tsconfig.json
 ├── prisma.config.ts
+├── vitest.config.ts
 └── README.md
 ```
 
@@ -159,6 +196,7 @@ boilerplate/
 | `npm start`               | Запуск у виробничому режимі          |
 | `npm run prisma:migrate`  | Створення та застосування міграцій   |
 | `npm run prisma:generate` | Генерація Prisma Client              |
+| `npm test`                | Запуск тестів (Vitest, без БД)       |
 
 ## Документація API
 

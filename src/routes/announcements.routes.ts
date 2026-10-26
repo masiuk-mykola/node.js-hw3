@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { registry } from "../openapi.ts";
 import { authenticate } from "../middleware/authenticate.ts";
+import { uploadImage } from "../middleware/upload.ts";
 import {
   validateBody,
   validateParams,
@@ -10,9 +11,11 @@ import * as announcements from "../controllers/announcements.controller.ts";
 import {
   announcementListSchema,
   announcementSchema,
+  createAnnouncementFormSchema,
   createAnnouncementSchema,
   idParamSchema,
   listQuerySchema,
+  updateAnnouncementFormSchema,
   updateAnnouncementSchema,
 } from "../validators/announcements.validator.ts";
 import { errorSchema } from "../validators/auth.validator.ts";
@@ -24,6 +27,7 @@ router.get("/:id", validateParams(idParamSchema), announcements.getAnnouncement)
 router.post(
   "/",
   authenticate,
+  uploadImage,
   validateBody(createAnnouncementSchema),
   announcements.createAnnouncement,
 );
@@ -31,6 +35,7 @@ router.patch(
   "/:id",
   authenticate,
   validateParams(idParamSchema),
+  uploadImage,
   validateBody(updateAnnouncementSchema),
   announcements.updateAnnouncement,
 );
@@ -43,6 +48,9 @@ router.delete(
 
 const json = (schema: Parameters<typeof registry.register>[1]) => ({
   "application/json": { schema },
+});
+const form = (schema: Parameters<typeof registry.register>[1]) => ({
+  "multipart/form-data": { schema },
 });
 const error = (description: string) => ({ description, content: json(errorSchema) });
 
@@ -77,7 +85,14 @@ registry.registerPath({
   tags: ["Announcements"],
   summary: "Create announcement",
   security: [{ bearerAuth: [] }],
-  request: { body: { content: json(createAnnouncementSchema) } },
+  request: {
+    body: {
+      content: {
+        ...form(createAnnouncementFormSchema),
+        ...json(createAnnouncementSchema),
+      },
+    },
+  },
   responses: {
     201: { description: "Created", content: json(announcementSchema) },
     400: error("Validation failed"),
@@ -93,7 +108,12 @@ registry.registerPath({
   security: [{ bearerAuth: [] }],
   request: {
     params: idParamSchema,
-    body: { content: json(updateAnnouncementSchema) },
+    body: {
+      content: {
+        ...form(updateAnnouncementFormSchema),
+        ...json(updateAnnouncementSchema),
+      },
+    },
   },
   responses: {
     200: { description: "Updated", content: json(announcementSchema) },
